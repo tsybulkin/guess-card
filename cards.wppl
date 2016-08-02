@@ -12,15 +12,17 @@ var rnd_agent = function(my_index, all_cards){
 
 var agents_list = [rnd_agent,rnd_agent,rnd_agent];
 
-var score_round = function(table){ 
-	var N = table.length;
-	var found = map(function (i) {
-		return filter(function (k){
-			return (k!=i && table[k]!=table[i])
-		}, _.range(N));}, _.range(N));
 
-	console.log(found);
-	return table;
+var score_round = function(table){	
+	var N = table.length;
+	var scores = map(function (i) { 
+		if (any(function (k){return (i!=k && table[i] == table[k]);},_.range(N))) {return 0;}
+		else {return table[i];}
+		}, _.range(N));
+
+	console.log(["scores:",scores]);
+	return scores;
+};
 
 var new_game = function (agents_list){
 	var N = agents_list.length;
