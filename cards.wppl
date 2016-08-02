@@ -1,0 +1,49 @@
+
+var pick_card = function(cards){
+	var card = cards[randomInteger(cards.length)];
+	return [card, filter(function(c){return c!=card;},cards)];
+}
+
+var rnd_agent = function(my_index, all_cards){
+	//console.log(["inside", my_index, all_cards]);
+	var my_cards = all_cards[my_index];
+	return pick_card(my_cards);
+}
+
+var agents_list = [rnd_agent,rnd_agent,rnd_agent];
+
+var score_round = function(table){ 
+	var N = table.length;
+	var found = map(function (i) {
+		return filter(function (k){
+			return (k!=i && table[k]!=table[i])
+		}, _.range(N));}, _.range(N));
+
+	console.log(found);
+	return table;
+
+var new_game = function (agents_list){
+	var N = agents_list.length;
+	var init_score = map(function (i){return 0;}, _.range(N));
+	var init_cards = map(function (i){return _.range(1,N+1)}, _.range(N));
+	return game({score:init_score, cards:init_cards},agents_list);
+};
+
+var game = function(state, agents_list){
+	var N = agents_list.length;
+
+	var table_n_hands = map(function (i) { var f = (agents_list[i]);
+			return f(i,state.cards)}, _.range(N));
+	
+	console.log(table_n_hands);
+	var table = map(function(i) {return table_n_hands[i][0] },_.range(N));
+	var hands = map(function(i) {return table_n_hands[i][1] },_.range(N));
+	var new_scores = score_round(table);
+	var new_scores = map(function(i) {return state.score[i] + new_scores[i]},_.range(N));
+	
+	if (hands[0].length == 0){return new_scores;}
+	return game({score:new_scores, cards:hands}, agents_list);
+}
+
+new_game(agents_list)
+
