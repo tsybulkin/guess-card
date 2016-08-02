@@ -10,7 +10,28 @@ var rnd_agent = function(my_index, all_cards){
 	return pick_card(my_cards);
 }
 
-var agents_list = [rnd_agent,rnd_agent,rnd_agent];
+var choose_card = function(cnt,i,my_cards,remaining_cards){
+	var card = my_cards[i];
+	var c = (filter(function(x){return x==card;},remaining_cards).length);
+	if (c == cnt) { return card;}
+	else { if (i==my_cards.length-1) {return choose_card(cnt+1,0,my_cards,remaining_cards);}
+			else { return choose_card(cnt,i+1,my_cards,remaining_cards); } }
+}
+
+var c_agent = function(my_index,all_cards){
+	var my_cards = all_cards[my_index];
+	var N = all_cards.length;
+	var remaining_cards = reduce(function(i,acc){
+		if (i==my_index){return acc;}
+		else {return acc.concat(all_cards[i]);}
+	},[],_.range(N));
+	console.log(remaining_cards);
+	var c = choose_card(0,0,sort(my_cards),remaining_cards);
+	console.log(["our choice:",c]);
+	return [c, filter(function(x){return c!=x;},my_cards)];
+}
+
+var agents_list = [c_agent,rnd_agent,rnd_agent, rnd_agent];
 
 
 var score_round = function(table){	
@@ -43,7 +64,7 @@ var game = function(state, agents_list){
 	var new_scores = score_round(table);
 	var new_scores = map(function(i) {return state.score[i] + new_scores[i]},_.range(N));
 	
-	if (hands[0].length == 0){return new_scores;}
+	if (hands[0].length == 0) {return new_scores;}
 	return game({score:new_scores, cards:hands}, agents_list);
 }
 
