@@ -25,9 +25,9 @@ var c_agent = function(my_index,all_cards){
 		if (i==my_index){return acc;}
 		else {return acc.concat(all_cards[i]);}
 	},[],_.range(N));
-	console.log(remaining_cards);
+	//console.log(remaining_cards);
 	var c = choose_card(0,0,sort(my_cards),remaining_cards);
-	console.log(["our choice:",c]);
+	//console.log(["our choice:",c]);
 	return [c, filter(function(x){return c!=x;},my_cards)];
 }
 
@@ -41,7 +41,7 @@ var score_round = function(table){
 		else {return table[i];}
 		}, _.range(N));
 
-	console.log(["scores:",scores]);
+	//console.log(["scores:",scores]);
 	return scores;
 };
 
@@ -58,15 +58,27 @@ var game = function(state, agents_list){
 	var table_n_hands = map(function (i) { var f = (agents_list[i]);
 			return f(i,state.cards)}, _.range(N));
 	
-	console.log(table_n_hands);
+	//console.log(table_n_hands);
 	var table = map(function(i) {return table_n_hands[i][0] },_.range(N));
 	var hands = map(function(i) {return table_n_hands[i][1] },_.range(N));
 	var new_scores = score_round(table);
 	var new_scores = map(function(i) {return state.score[i] + new_scores[i]},_.range(N));
 	
-	if (hands[0].length == 0) {return new_scores;}
+	if (hands[0].length == 0) {
+		var s_max = reduce(function(s,c_max){s > c_max ? s:c_max},0,new_scores);
+		return map(function(s){s==s_max ? 1:0},new_scores);}
 	return game({score:new_scores, cards:hands}, agents_list);
 }
 
-new_game(agents_list)
+//new_game(agents_list)
+
+var run = function (k){
+	var N = agents_list.length;
+	return reduce(function(res,acc){
+		return T.add(acc,Vector(new_game(agents_list)));
+	}, zeros([N,1]), _.range(k))
+}
+
+run(1000)
+
 
