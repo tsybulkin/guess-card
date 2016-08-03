@@ -4,9 +4,8 @@ var pick_card = function(cards){
 	return [card, filter(function(c){return c!=card;},cards)];
 }
 
-var rnd_agent = function(my_index, all_cards){
-	//console.log(["inside", my_index, all_cards]);
-	var my_cards = all_cards[my_index];
+var rnd_agent = function(my_index,state){
+	var my_cards = state.cards[my_index];
 	return pick_card(my_cards);
 }
 
@@ -18,20 +17,63 @@ var choose_card = function(cnt,i,my_cards,remaining_cards){
 			else { return choose_card(cnt,i+1,my_cards,remaining_cards); } }
 }
 
-var c_agent = function(my_index,all_cards){
-	var my_cards = all_cards[my_index];
-	var N = all_cards.length;
-	var remaining_cards = reduce(function(i,acc){
+var c_agent = function(my_index,state){
+	var rem_cards = state.cards;
+	var my_cards = rem_cards[my_index];
+	var N = rem_cards.length;
+	var next_rem_cards = reduce(function(i,acc){
 		if (i==my_index){return acc;}
-		else {return acc.concat(all_cards[i]);}
+		else {return acc.concat(rem_cards[i]);}
 	},[],_.range(N));
-	//console.log(remaining_cards);
-	var c = choose_card(0,0,sort(my_cards),remaining_cards);
-	//console.log(["our choice:",c]);
+	var c = choose_card(0,0,sort(my_cards,gt),next_rem_cards);
 	return [c, filter(function(x){return c!=x;},my_cards)];
-}
+};
 
-var agents_list = [c_agent,rnd_agent,rnd_agent, rnd_agent];
+// -------------------------------------------------------------
+
+var movePrior = function(i,state){
+	var my_cards = state.cards[i];
+	var N = my_cards.length;
+	return my_cards[randomInteger(N)]
+};
+   
+var pinf_agent = function(my_index,state){
+	var c = movePrior(my_index,state);
+	var my_cards = state.cards[my_index];
+	return [c, filter(function(x){return c!=x;}, my_cards)];
+};
+
+var transition = function(state) {
+	var N = agents_list.length;
+
+	var table_n_hands = map(function (i) { var f = (agents_list[i]);
+			return f(i,state.cards)}, _.range(N));
+	var hands = map(function(i) {return table_n_hands[i][1] },_.range(N));
+	var new_scores = score_round(table);
+	var new_scores = map(function(i) {return state.score[i] + new_scores[i]},_.range(N));
+	
+    return assign(state, move.x, newRow);
+};
+
+var utility = function(state, move, player, score) {
+	return score - move;
+};
+
+var act = dp.cache(function(state, player) {
+  return Infer({ method: 'enumerate' }, function(){
+    var move = sample(movePrior(state));
+    var eu = expectation(Infer({ method: 'enumerate'}, function(){
+      var outcome = transition(state, move, player);
+      return utility(outcome, player);
+    }));
+    factor(eu);    
+    return move;
+  });
+});
+// -------------------------------------------------------------
+
+
+var agents_list = [c_agent,pinf_agent,rnd_agent, rnd_agent, rnd_agent];
 
 
 var score_round = function(table){	
@@ -40,8 +82,6 @@ var score_round = function(table){
 		if (any(function (k){return (i!=k && table[i] == table[k]);},_.range(N))) {return 0;}
 		else {return table[i];}
 		}, _.range(N));
-
-	//console.log(["scores:",scores]);
 	return scores;
 };
 
@@ -56,19 +96,20 @@ var game = function(state, agents_list){
 	var N = agents_list.length;
 
 	var table_n_hands = map(function (i) { var f = (agents_list[i]);
-			return f(i,state.cards)}, _.range(N));
+			return f(i,state)}, _.range(N));
 	
-	//console.log(table_n_hands);
 	var table = map(function(i) {return table_n_hands[i][0] },_.range(N));
 	var hands = map(function(i) {return table_n_hands[i][1] },_.range(N));
 	var new_scores = score_round(table);
 	var new_scores = map(function(i) {return state.score[i] + new_scores[i]},_.range(N));
 	
-	if (hands[0].length == 0) {
-		var s_max = reduce(function(s,c_max){s > c_max ? s:c_max},0,new_scores);
-		return map(function(s){s==s_max ? 1:0},new_scores);}
+	if (hands[0].length == 0) { return new_scores;}
+//		var s_max = reduce(function(s,c_max){s > c_max ? s:c_max},0,new_scores);
+//		return map(function(s){s==s_max ? 1:0},new_scores);}
 	return game({score:new_scores, cards:hands}, agents_list);
 }
+
+
 
 //new_game(agents_list)
 
@@ -79,6 +120,6 @@ var run = function (k){
 	}, zeros([N,1]), _.range(k))
 }
 
-run(1000)
+run(100)
 
 
