@@ -9,8 +9,6 @@ var rnd_agent = function(my_index,state){
 	return pick_card(my_cards);
 }
 
-// -----------------------------------------------------------------
-
 var choose_card = function(cnt,i,my_cards,remaining_cards){
 	var card = my_cards[i];
 	var c = (filter(function(x){return x==card;},remaining_cards).length);
@@ -44,15 +42,8 @@ var movePrior = dp.cache(function(i,state){
   });
 });
 
-var pinf_agent = function(my_index,state){
-	var c = sample(act(state,my_index));
-	//console.log("Never");
-	var my_cards = state.cards[my_index];
-	return [c, filter(function(x){return c!=x;}, my_cards)];
-};
-
    
-var one_step_agent = function(my_index,state){
+var pinf_agent = function(my_index,state){
 	var c = sample(act(state,my_index));
 	//console.log("Never");
 	var my_cards = state.cards[my_index];
@@ -80,26 +71,21 @@ var transition = function(state,move,my_index) {
     return {state:next_state, table:table};
 };
 
-var simulate = function(state,move,my_index){
-
-};
-
-
-var utility = function(state,move,next_state, my_index, scores) {
-	var score = scores[my_index];
+var utility = function(state,move,next_state, player, scores) {
+	var score = scores[player];
 	return score - move;
 };
 
-var act = dp.cache(function(state, my_index) {
+var act = dp.cache(function(state, player) {
 	//console.log(["state&player:", state,player]);
 	return Infer({ method: 'enumerate',maxExecutions:1000}, function(){
-		var move = sample(movePrior(my_index, state));
+		var move = sample(movePrior(player, state));
 		//console.log(["Move:", move]);
 		var eu = expectation(Infer({ method: 'enumerate',maxExecutions:500}, function(){
-		var s_n_t = transition(state,move,my_index);
+		var s_n_t = transition(state,move,player);
 		//console.log(["s_n_t:", s_n_t]);
 		var scores = score_round(s_n_t.table);
-		return utility(state,move,s_n_t.state,my_index,scores);
+		return utility(state,move,s_n_t.state,player,scores);
     }));
     factor(eu);    
     return move;
@@ -108,7 +94,7 @@ var act = dp.cache(function(state, my_index) {
 // -------------------------------------------------------------
 
 
-var agents_list = [c_agent,one_step_agent,rnd_agent, rnd_agent, pinf_agent];
+var agents_list = [c_agent,pinf_agent,rnd_agent, rnd_agent, rnd_agent];
 
 
 var score_round = function(table){	
@@ -135,6 +121,9 @@ var game = function(state, agents_list){
 	var table = map(function(i) {return table_n_hands[i][0] },_.range(N));
 	var hands = map(function(i) {return table_n_hands[i][1] },_.range(N));
 	var round_scores = score_round(table);
+	console.log(["round:", table]);
+	console.log(["score:",round_scores]);
+	console.log("");
 	
 	var new_scores = map(function(i) {return state.score[i] + round_scores[i]},_.range(N));
 	if (hands[0].length == 0) { return new_scores;}
@@ -150,10 +139,7 @@ var game = function(state, agents_list){
 var run = function (k){
 	var N = agents_list.length;
 	return reduce(function(res,acc){
-		var score = new_game(agents_list);
-		console.log(["score:",score]);
-		
-		return T.add(acc,Vector(score));
+		return T.add(acc,Vector(new_game(agents_list)));
 	}, zeros([N,1]), _.range(k))
 }
 
