@@ -5,6 +5,7 @@ var pick_card = function(cards){
 }
 
 var rnd_agent = function(my_index,state){
+	//console.log(["RND-A: State:",state]);
 	var my_cards = state.cards[my_index];
 	return pick_card(my_cards);
 }
@@ -21,7 +22,7 @@ var choose_card = function(cnt,i,my_cards,remaining_cards){
 
 var c_agent = function(my_index,state){
 	var rem_cards = state.cards;
-	//console.log(["rem_cards:",rem_cards]);
+	console.log(["C-agent: State:",state]);
 	var my_cards = rem_cards[my_index];
 	var N = rem_cards.length;
 	var next_rem_cards = reduce(function(i,acc){
@@ -38,15 +39,15 @@ var movePrior = dp.cache(function(i,state){
 	var my_cards = (state.cards)[i];
 	var N = my_cards.length;
 
-	return Infer({ method: 'enumerate', maxExecutions:20 }, function(){
+	return Infer({ method: 'MCMC', samples:20 }, function(){
     var move = my_cards[randomInteger(N)];
     return move;
   });
-});
+}, 100000);
 
 var pinf_agent = function(my_index,state){
-	var c = sample(act(state,my_index));
-	//console.log("Never");
+	console.log(["PINF-A: State:",state]);
+	var c = sample(act_sim(state,my_index));
 	var my_cards = state.cards[my_index];
 	return [c, filter(function(x){return c!=x;}, my_cards)];
 };
@@ -57,6 +58,11 @@ var one_step_agent = function(my_index,state){
 	//console.log("Never");
 	var my_cards = state.cards[my_index];
 	return [c, filter(function(x){return c!=x;}, my_cards)];
+};
+
+var isTerminal = function(state){
+	var rem_cards = state.cards;
+	return rem_cards[0].length === 0;
 };
 
 var transition = function(state,move,my_index) {
@@ -73,21 +79,30 @@ var transition = function(state,move,my_index) {
 		}, _.range(N));
 	var table = map(function(i) {return table_n_hands[i][0] },_.range(N));
 	var hands = map(function(i) {return table_n_hands[i][1] },_.range(N));
-	var new_scores = score_round(table);
-	var new_scores = map(function(i) {return state.score[i] + new_scores[i]},_.range(N));
+	var scores = score_round(table);
+	var new_scores = map(function(i) {return state.score[i] + scores[i]},_.range(N));
 	var next_state = {score:new_scores, cards:hands};
 	
-    return {state:next_state, table:table};
+    return {state:next_state, scores:scores};
 };
 
-var simulate = function(state,move,my_index){
-
+var simulate = function(state,move,my_index,depth){
+	var state_scores = transition(state, move, my_index);
+	if (depth == 0){return state_scores;}
+	var next_state = state_scores.state;
+	if (isTerminal(next_state)) {
+		var scores = state_scores.scores;
+	    return {state:next_state,scores:scores};
+	} else {
+	    var next_move = sample(act_sim(next_state, my_index));
+	    return transition(next_state, next_move, my_index,depth-1);
+	}
 };
 
 
 var utility = function(state,move,next_state, my_index, scores) {
 	var score = scores[my_index];
-	return score - move;
+	return score - move/2;
 };
 
 var act = dp.cache(function(state, my_index) {
@@ -96,19 +111,32 @@ var act = dp.cache(function(state, my_index) {
 		var move = sample(movePrior(my_index, state));
 		//console.log(["Move:", move]);
 		var eu = expectation(Infer({ method: 'enumerate',maxExecutions:500}, function(){
-		var s_n_t = transition(state,move,my_index);
-		//console.log(["s_n_t:", s_n_t]);
-		var scores = score_round(s_n_t.table);
-		return utility(state,move,s_n_t.state,my_index,scores);
+		var state_scores = transition(state,move,my_index);
+		var scores = state_scores.scores;
+		return utility(state,move,state_scores.state,my_index,scores);
     }));
     factor(eu);    
     return move;
   });
 });
+
+var act_sim = dp.cache(function(state, my_index) {
+	//console.log(["state&player:", state,player]);
+	return Infer({ method: 'MCMC',samples:5}, function(){
+		var move = sample(movePrior(my_index, state));
+		var eu = expectation(Infer({ method: 'MCMC',samples:20}, function(){
+		var state_scores = simulate(state,move,my_index,1);
+		var scores = state_scores.scores;
+		return utility(state,move,state_scores.state,my_index,scores);
+    }));
+    factor(eu);    
+    return move;
+  });
+},200000);
 // -------------------------------------------------------------
 
 
-var agents_list = [c_agent,one_step_agent,rnd_agent, rnd_agent, pinf_agent];
+var agents_list = [c_agent,rnd_agent,rnd_agent,rnd_agent,pinf_agent];
 
 
 var score_round = function(table){	
@@ -132,6 +160,7 @@ var game = function(state, agents_list){
 
 	var table_n_hands = map(function (i) { var f = (agents_list[i]);
 			return f(i,state)}, _.range(N));
+	console.log("New round: -----------------");
 	var table = map(function(i) {return table_n_hands[i][0] },_.range(N));
 	var hands = map(function(i) {return table_n_hands[i][1] },_.range(N));
 	var round_scores = score_round(table);
@@ -157,6 +186,6 @@ var run = function (k){
 	}, zeros([N,1]), _.range(k))
 }
 
-run(100)
+run(1)
 
 
